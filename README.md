@@ -23,6 +23,9 @@ export default class MyComponent extends Vue {}
 
 `ComponentOptions` is an object with the same pattern used in the Options API (if there's any part of the Options API implementation that hasn't been covered yet in the Class API implementation).
 
+### `Computed Properties`
+All getter/setters are automatically transformed into computed properties.
+
 ### `@Prop`
 
 ```
