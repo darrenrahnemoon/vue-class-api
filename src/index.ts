@@ -1,5 +1,5 @@
-import { getMetadata, ensureMetadata }                                 from '$/lib/reflect-metadata';
-import _                                                               from '$/lib/lodash';
+import { getMetadata, ensureMetadata }                                 from './reflect-metadata';
+import _                                                               from 'lodash';
 import {
 	ComponentPublicInstance, ComponentInternalInstance, ComponentOptions,
 	Prop as PropOptions, Slots, WatchOptions, WatchStopHandle, computed

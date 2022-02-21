@@ -1,12 +1,13 @@
 {
-  "name": "darrenrahnemoon",
-  "private": true,
-  "version": "0.0.0",
-  "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit -p ./src/tsconfig.json && vite build",
-    "preview": "vite preview"
+  "name": "vue-class-api",
+  "version": "0.0.3",
+  "author": {
+    "name": "Darren Rahnemoon",
+    "email": "darrenrahnemoon@gmail.com",
+    "url": "https://darrenrahnemoon.com"
   },
+  "main": "./src/index.ts",
+  "keywords": [ "vue", "vue3", "vue-class-component", "vue-property-decorator" ],
   "dependencies": {
     "lodash": "^4.17.21",
     "reflect-metadata": "^0.1.13",
@@ -22,9 +23,6 @@
     "eslint-plugin-local-rules": "^0.1.0",
     "eslint-plugin-vue": "^6.2.2",
     "eslint-plugin-vue-scoped-css": "^1.1.0",
-    "typescript": "^4.5.4",
-    "vite": "^2.8.0",
-    "vite-tsconfig-paths": "^3.4.0",
-    "vue-tsc": "^0.29.8"
+    "typescript": "^4.5.4"
   }
 }
