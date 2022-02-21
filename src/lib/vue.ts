@@ -48,7 +48,6 @@ export class Vue implements ComponentPublicInstance {
 	$watch: (source: string | Function, cb: Function, options?: WatchOptions) => WatchStopHandle;
 	// #endregion Public instance fields
 
-
 	// #region Lifecycle hooks
 	beforeCreate?: Function;
 	created?: Function;

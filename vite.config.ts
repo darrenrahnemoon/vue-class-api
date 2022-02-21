@@ -6,7 +6,10 @@ import tsconfigPaths    from 'vite-tsconfig-paths';
 export default defineConfig({
 	root      : './src',
 	publicDir : './src/public',
-	plugins   : [
+	build     : {
+		outDir : '../build',
+	},
+	plugins : [
 		tsconfigPaths(),
 		vue(),
 	],
