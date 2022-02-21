@@ -1,116 +1,144 @@
-import { getMetadata, ensureMetadata } from '$/lib/reflect-metadata';
-import _                               from '$/lib/lodash';
+import { getMetadata, ensureMetadata }                                                from '$/lib/reflect-metadata';
+import _                                                                              from '$/lib/lodash';
 import {
-	SetupContext,
-	Prop as PropOptions, Slot,
-	reactive, ref, toRefs,
-	watch, WatchOptions,
-	computed
+	ComponentPublicInstance, ComponentInternalInstance, ComponentOptions,
+	Prop as PropOptions, Slots, WatchOptions, WatchStopHandle, DebuggerEvent, computed
 } from 'vue';
 
 // Dictionary of all the metadata names used. Changing these values will change the name of the metadata used everywhere.
 export const metadataKeys = {
-	watch  : '__WATCH__',
-	props  : '__PROPS__',
-	emits  : '__EMITS__',
-	expose : '__EXPOSE__',
+	watch   : '__WATCH__',
+	props   : '__PROPS__',
+	emits   : '__EMITS__',
+	expose  : '__EXPOSE__',
+	ref     : '__REF__',
+	provide : '__PROVIDE__',
+	inject  : '__INJECT__',
 };
 
-const excludedFields = [ 'props', 'emits', 'attrs', 'slots', 'emit', 'expose' ];
-const excludedMethods = [ 'constructor', 'setup' ];
+const excludedProperties = [ 'name', 'props', 'emits', 'expose', 'watch', 'computed', '$:', '$data', '$props', '$attrs', '$refs', '$slots', '$root', '$parent', '$emit', '$el', '$options' ];
+const lifeCycleHooks = [ 'beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'activated', 'deactivated', 'beforeDestroy', 'beforeUnmount', 'destroyed', 'unmounted', 'renderTracked', 'renderTriggered', 'errorCaptured' ];
 
-export class Vue {
+export class Vue implements ComponentPublicInstance {
+	// #region Component options
+	provide: Function | Dictionary<any>;
+	inject: Dictionary<any | { from?: string; default?: any }>;
+	name: string;
+	props: Dictionary<PropOptions<any>>;
+	emits: string[];
+	expose: string[];
+	watch: Dictionary<{ handler: Function } & WatchOptions>
+	computed: Dictionary<Function | { get?: Function; set?: Function }>
+	// #endregion Component options
 
-	readonly props = {};
-	readonly emits: string[];
+	// #region Public instance fields
+	$: ComponentInternalInstance;
+	$data: Dictionary<any>;
+	$props: Dictionary<any>;
+	$attrs: Dictionary<any>;
+	$refs: Dictionary<any>;
+	$slots: Slots;
+	$root: ComponentPublicInstance | null;
+	$parent: ComponentPublicInstance | null;
+	$emit: (event: string, ...args) => void;
+	$el: Node | undefined;
+	$options: ComponentOptions;
+	$forceUpdate: () => void;
+	$nextTick: <T = void>(this: T, fn?: (this: T) => void) => Promise<void>;
+	$watch: (source: string | Function, cb: Function, options?: WatchOptions) => WatchStopHandle;
+	// #endregion Public instance fields
 
 
-	readonly $attrs: { [x: string]: unknown };
-	readonly $slots: Readonly<{ [name: string]: Slot }>;
-	readonly $emit: ((event: string, ...args: any[]) => void) | ((event: string, ...args: any[]) => void);
-
-	get name() {
-		return this.constructor.name;
-	}
-
-	setup(): this
-	setup(props): this
-	setup(props?, context?: SetupContext): this {
-		// First, assign the props so watchers below can pick them up if there's any immediate watchers
-		_.assign(this, toRefs(props));
-		// _.assign(this, _.pick(context, [ 'attrs', 'slots' ]));
-		console.log(context);
-		const prototypeProperties = Object.getOwnPropertyDescriptors(this.constructor.prototype);
-
-		const methods = _(prototypeProperties)
-			.pickBy((desc, propertyKey) => typeof desc.value === 'function' && !excludedMethods.includes(propertyKey))
-			.mapValues((desc, propertyKey) => {
-				delete this.constructor.prototype[propertyKey];
-				return desc;
-			})
-			.valueOf();
-		Object.defineProperties(this, methods);
-
-		const computedProperties = _(prototypeProperties)
-			.pickBy(desc => !!desc.get || !!desc.set)
-			.mapValues((desc, propertyKey) => {
-				const get = desc.get?.bind(this);
-				const set = desc.set?.bind(this);
-				delete this.constructor.prototype[propertyKey];
-				return computed({ get, set });
-			})
-			.valueOf();
-		_.assign(this, computedProperties);
-
-		const watchers = getMetadata(metadataKeys.watch, this.constructor.prototype) || {};
-		_.forEach(watchers, ({ expression, options }, propertyKey) => {
-			watch(_.get(this, expression), this[propertyKey].bind(this), options);
-		});
-
-		return this;
-	}
+	// #region Lifecycle hooks
+	beforeCreate?: Function;
+	created?: Function;
+	beforeMount?: Function;
+	mounted?: Function;
+	beforeUpdate?: Function;
+	updated?: Function;
+	activated?: Function;
+	deactivated?: Function;
+	/** @deprecated use `beforeUnmount` instead */
+	beforeDestroy?: Function;
+	beforeUnmount?: Function;
+	/** @deprecated use `unmounted` instead */
+	destroyed?: Function;
+	unmounted?: Function;
+	renderTracked?: (event: DebuggerEvent) => void;
+	renderTriggered?: (event: DebuggerEvent) => void;
+	errorCaptured?: (error, instance: ComponentPublicInstance | null, info: string) => (boolean | void);
+	// #endregion Lifecycle hooks
 }
 
-export function Component() {
-	return function(target) {
-		const instance = new target();
-		instance.props = getMetadata(metadataKeys.props, target.prototype) || {};
-		instance.emits = Array.from(getMetadata(metadataKeys.emits, target.prototype) || []);
-		instance.setup = instance.setup.bind(instance);
-		// instance.expose = getMetadata(metadataKeys.expose, target.prototype);
-
+export function Component(options: ComponentOptions = {}) {
+	return function(VueSubclass) {
+		const instance = new VueSubclass();
 		const instanceProperties = Object.getOwnPropertyDescriptors(instance);
+		const prototypeProperties = Object.getOwnPropertyDescriptors(VueSubclass.prototype);
 
-		const refsAndReactiveProperties = _(instanceProperties)
+		// Provide/Inject
+		const provide = getMetadata(metadataKeys.provide, VueSubclass.prototype);
+		instance.provide = function() {
+			return _.mapValues(provide, key => computed(() => instance[key]));
+		};
+		instance.inject = getMetadata(metadataKeys.inject, VueSubclass.prototype);
+
+		// Props
+		instance.props = getMetadata(metadataKeys.props, VueSubclass.prototype) || {};
+
+		// Computed
+		instance.computed = _.pickBy(prototypeProperties, desc => desc.get || desc.set);
+
+		// Template Refs
+		const refs = getMetadata(metadataKeys.ref, VueSubclass.prototype) || [];
+		refs.forEach(ref => {
+			instance.computed[ref] = {
+				get() {
+					return this.$refs[ref];
+				},
+			};
+		});
+
+		// Data
+		const dataProperties: string[] = _(instanceProperties)
 			.pickBy((desc, propertyKey) =>
-				typeof desc.value !== 'function' // not a method/hook
-				&& typeof desc.get !== 'function' // not a computed field
-				&& typeof desc.set !== 'function' // not a computed field
-				&& !instance.props[propertyKey] // not a prop
-				&& !excludedFields.includes(propertyKey)
-			)
-			.mapValues(desc => {
-				if (typeof desc.value === 'object') {
-					return { value : reactive(desc.value) };
-				}
-				const reference = ref(desc.value);
-				return {
-					get : () => reference.value,
-					set : value => {
-						reference.value = value;
-					},
-				};
-			})
+				!desc.get && !desc.set 							// Not a getter/setter (computed)
+				&& typeof desc.value !== 'function' 			// Not a method/hook
+				&& !excludedProperties.includes(propertyKey) 	// Not component option
+				&& !instance.props[propertyKey] 				// Not a prop
+				&& !refs.includes(propertyKey) 					// Not a ref
+				&& !instance.inject[propertyKey]) 				// Not an injected value
+			.keys()
 			.valueOf();
+		const data = _.pick(instance, dataProperties);
+		instance.data = function() {
+			return data;
+		};
 
-		Object.defineProperties(instance, refsAndReactiveProperties);
+		// Component Name
+		instance.name = options.name || VueSubclass.name;
 
+		// Emits
+		instance.emits = Array.from(getMetadata(metadataKeys.emits, VueSubclass.prototype) || []);
+
+		// Expose
+		instance.expose = getMetadata(metadataKeys.expose, VueSubclass.prototype);
+
+		// Watchers
+		instance.watch = getMetadata(metadataKeys.watch, VueSubclass.prototype) || {};
+
+		// Methods
+		instance.methods = _(prototypeProperties)
+			.pickBy((desc, propertyKey) => typeof desc.value === 'function' && !lifeCycleHooks.includes(propertyKey))
+			.mapValues(desc => desc.value).valueOf();
+
+		// Overwrite everything with any specified component option passed to the @Component decorator
+		_.assign(instance, options);
 		return instance;
 	};
 }
 
-export function Prop(options?: PropOptions<any>) {
-	options = options || {};
+export function Prop(options: PropOptions<any> = {}) {
 	return function(target, propertyKey) {
 		if (typeof options === 'object' && !(options as any).type) {
 			(options as any).type = Reflect.getMetadata('design:type', target, propertyKey);
@@ -135,6 +163,24 @@ export function Emits(...eventNames: string[]) {
 
 export function Watch(expression: string, options?: WatchOptions) {
 	return function(target: Vue, propertyKey: string) {
-		ensureMetadata(metadataKeys.watch, {}, target)[propertyKey] = { expression, options };
+		ensureMetadata(metadataKeys.watch, {}, target)[expression] = { ...options, handler : target[propertyKey] };
+	};
+}
+
+export function Ref() {
+	return function(target, propertyKey: string) {
+		ensureMetadata(metadataKeys.ref, [], target).push(propertyKey);
+	};
+}
+
+export function Provide(alias?: string) {
+	return function(target, propertyKey: string) {
+		ensureMetadata(metadataKeys.provide, {}, target)[alias || propertyKey] = propertyKey;
+	};
+}
+
+export function Inject(alias?: string, defaultValue?: any) {
+	return function(target, propertyKey: string) {
+		ensureMetadata(metadataKeys.inject, {}, target)[propertyKey] = { from : alias || propertyKey, default : defaultValue };
 	};
 }

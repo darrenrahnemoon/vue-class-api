@@ -1,18 +1,30 @@
 <script lang="ts">
-import { Vue, Component, Prop, Watch, Emits, Expose } from '$/lib/vue';
+import { Vue, Component, Prop, Watch, Emits, Expose, Ref, Inject, Provide } from '$/lib/vue';
+import Component2                                                           from './Component2.vue';
 
-@Component()
+@Component({
+	components : { Component2 },
+})
 export default class HelloWorld extends Vue {
 	@Prop({ type : String })
 	msg: string;
 
+	@Provide('fam')
+	flow: number[] = [ 1, 2, 3 ];
+
 	@Expose()
 	count: number = 0;
 
+	@Inject()
+	lmao: number;
+
+	@Ref()
+	cool;
+
 	@Watch('msg')
 	onMsgChange(msg) {
-		console.log(this);
-		console.log('msgChangedTo', msg);
+		// console.log('msgChangedTo', msg);
+		console.log(this.cool);
 	}
 
 	get bob() {
@@ -24,16 +36,22 @@ export default class HelloWorld extends Vue {
 	}
 
 	@Emits('ye')
-	wooooooo() {
-		console.log(this.bob);
-		this.emit('ye');
+	bump() {
+		this.flow = [ 100000 ];
+		console.log(this, this.cool);
+		this.lmao = 1233;
+		this.$emit('ye');
 	}
 }
 
 </script>
 
 <template>
-	<h1>{{ msg }}</h1>
+	<h1 v-bind="$attrs">
+		{{ msg }} {{ lmao }}
+	</h1>
+	{{ flow }}
+	<Component2 ref="cool" />
 
 	<p>
 		Recommended IDE setup:
@@ -43,8 +61,8 @@ export default class HelloWorld extends Vue {
 	</p>
 
 	<p>See <code>README.md</code> for more information.</p>
-	<button @click="$emit('ye')">
-		Emit to parent {{ count }}
+	<button @click="$emit('ye'); bump()">
+		Emit to parent {{ count }} {{ bob }}
 	</button>
 	<p>
 		<a href="https://vitejs.dev/guide/features.html" target="_blank">
