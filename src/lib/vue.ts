@@ -1,8 +1,8 @@
-import { getMetadata, ensureMetadata }                                                from '$/lib/reflect-metadata';
-import _                                                                              from '$/lib/lodash';
+import { getMetadata, ensureMetadata }                                 from '$/lib/reflect-metadata';
+import _                                                               from '$/lib/lodash';
 import {
 	ComponentPublicInstance, ComponentInternalInstance, ComponentOptions,
-	Prop as PropOptions, Slots, WatchOptions, WatchStopHandle, DebuggerEvent, computed
+	Prop as PropOptions, Slots, WatchOptions, WatchStopHandle, computed
 } from 'vue';
 
 // Dictionary of all the metadata names used. Changing these values will change the name of the metadata used everywhere.
@@ -14,10 +14,12 @@ export const metadataKeys = {
 	ref     : '__REF__',
 	provide : '__PROVIDE__',
 	inject  : '__INJECT__',
+	hooks   : '__HOOKS__',
 };
 
-const excludedProperties = [ 'name', 'props', 'emits', 'expose', 'watch', 'computed', '$:', '$data', '$props', '$attrs', '$refs', '$slots', '$root', '$parent', '$emit', '$el', '$options' ];
-const lifeCycleHooks = [ 'beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'activated', 'deactivated', 'beforeDestroy', 'beforeUnmount', 'destroyed', 'unmounted', 'renderTracked', 'renderTriggered', 'errorCaptured' ];
+const excludedProperties = [ 'provide', 'inject', 'name', 'props', 'emits', 'expose', 'watch', 'computed', '$:', '$data', '$props', '$attrs', '$refs', '$slots', '$root', '$parent', '$emit', '$el', '$options' ];
+const hookNames = [ 'beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'activated', 'deactivated', 'beforeDestroy', 'beforeUnmount', 'destroyed', 'unmounted', 'renderTracked', 'renderTriggered', 'errorCaptured' ];
+type HookName = 'beforeCreate' | 'created' | 'beforeMount' | 'mounted' | 'beforeUpdate' | 'updated' | 'activated' | 'deactivated' | 'beforeDestroy' | 'beforeUnmount' | 'destroyed' | 'unmounted' | 'renderTracked' | 'renderTriggered' | 'errorCaptured';
 
 export class Vue implements ComponentPublicInstance {
 	// #region Component options
@@ -47,26 +49,6 @@ export class Vue implements ComponentPublicInstance {
 	$nextTick: <T = void>(this: T, fn?: (this: T) => void) => Promise<void>;
 	$watch: (source: string | Function, cb: Function, options?: WatchOptions) => WatchStopHandle;
 	// #endregion Public instance fields
-
-	// #region Lifecycle hooks
-	beforeCreate?: Function;
-	created?: Function;
-	beforeMount?: Function;
-	mounted?: Function;
-	beforeUpdate?: Function;
-	updated?: Function;
-	activated?: Function;
-	deactivated?: Function;
-	/** @deprecated use `beforeUnmount` instead */
-	beforeDestroy?: Function;
-	beforeUnmount?: Function;
-	/** @deprecated use `unmounted` instead */
-	destroyed?: Function;
-	unmounted?: Function;
-	renderTracked?: (event: DebuggerEvent) => void;
-	renderTriggered?: (event: DebuggerEvent) => void;
-	errorCaptured?: (error, instance: ComponentPublicInstance | null, info: string) => (boolean | void);
-	// #endregion Lifecycle hooks
 }
 
 export function Component(options: ComponentOptions = {}) {
@@ -80,7 +62,7 @@ export function Component(options: ComponentOptions = {}) {
 		instance.provide = function() {
 			return _.mapValues(provide, key => computed(() => instance[key]));
 		};
-		instance.inject = getMetadata(metadataKeys.inject, VueSubclass.prototype);
+		instance.inject = getMetadata(metadataKeys.inject, VueSubclass.prototype) || [];
 
 		// Props
 		instance.props = getMetadata(metadataKeys.props, VueSubclass.prototype) || {};
@@ -128,8 +110,24 @@ export function Component(options: ComponentOptions = {}) {
 
 		// Methods
 		instance.methods = _(prototypeProperties)
-			.pickBy((desc, propertyKey) => typeof desc.value === 'function' && !lifeCycleHooks.includes(propertyKey))
+			.pickBy((desc, propertyKey) => typeof desc.value === 'function' && !hookNames.includes(propertyKey))
 			.mapValues(desc => desc.value).valueOf();
+
+		const hooks = getMetadata(metadataKeys.hooks, VueSubclass.prototype) || {};
+		_.forEach(hooks, (methods: Function[], hookName: HookName) => {
+			// If there's already a number of existing hooks for the given life cycle, merge them
+			if (Array.isArray(instance[hookName])) {
+				instance[hookName] = [ ...instance[hookName], ...methods ];
+				return;
+			}
+
+			// If there's only one existing hook for the given life cycle add that to the existing
+			if (typeof instance[hookName] === 'function') {
+				methods.unshift(instance[hookName]);
+			}
+
+			instance[hookName] = methods;
+		});
 
 		// Overwrite everything with any specified component option passed to the @Component decorator
 		_.assign(instance, options);
@@ -181,5 +179,13 @@ export function Provide(alias?: string) {
 export function Inject(alias?: string, defaultValue?: any) {
 	return function(target, propertyKey: string) {
 		ensureMetadata(metadataKeys.inject, {}, target)[propertyKey] = { from : alias || propertyKey, default : defaultValue };
+	};
+}
+
+export function Hook(name?: HookName) {
+	return function(target, propertyKey: string, desc: PropertyDescriptor) {
+		const hooks = ensureMetadata(metadataKeys.hooks, {}, target);
+		hooks[name] = hooks[name] || [];
+		hooks[name].push(desc.value);
 	};
 }
