@@ -224,8 +224,45 @@ export default class MyComponent extends Vue {
 }
 ```
 
+### `Mixin`
+In order to create nested Vue Components you can use the `Mixin` helper function like so:
+
+```
+import { Vue, Component, Mixin } from 'vue-class-api';
+
+@Component()
+export default class Mom extends Vue {
+	mounted() {
+		console.log('Dad');
+	}
+}
+
+@Component()
+export default class Dad extends Vue {
+	mounted() {
+		console.log('Mom');
+	}
+}
+
+@Component()
+export default class Child extends Mixin(Mom, Dad) {
+	mounted() {
+		console.log('Child');
+	}
+}
+```
+
+The order of mounted hooks running would be like so: 
+```
+Mom
+Dad
+Child
+```
+
+While this is not a temporary solution and here to stay, we are working on a better solution for component inheritance with a more robust development flow.
+
 ## Roadmap
-1) **Extending Components**: We're working on a solution for nested components that provides full typescript support.
+1) **Extending Components**: We're working on a better solution for nested components that provides full typescript support.
 2) **More Quality-of-Life Decorators**: We're trying to isolate component options into their own standalone decorators. The end goal is to not have a need to provide any arguments to the @Component decorator.
 
 ## Contributions

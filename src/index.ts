@@ -114,18 +114,12 @@ export function Component(options: ComponentOptions = {}) {
 			.mapValues(desc => desc.value).valueOf();
 
 		const hooks = getMetadata(metadataKeys.hooks, VueSubclass.prototype) || {};
-		_.forEach(hooks, (methods: Function[], hookName: HookName) => {
-			// If there's already a number of existing hooks for the given life cycle, merge them
-			if (Array.isArray(instance[hookName])) {
-				instance[hookName] = [ ...instance[hookName], ...methods ];
-				return;
+		hookNames.forEach(hookName => {
+			const methods = hooks[hookName] || [];
+			const prototypeHook = VueSubclass.prototype[hookName];
+			if (prototypeHook) {
+				methods.unshift(prototypeHook);
 			}
-
-			// If there's only one existing hook for the given life cycle add that to the existing
-			if (typeof instance[hookName] === 'function') {
-				methods.unshift(instance[hookName]);
-			}
-
 			instance[hookName] = methods;
 		});
 
@@ -188,4 +182,11 @@ export function Hook(name?: HookName) {
 		hooks[name] = hooks[name] || [];
 		hooks[name].push(desc.value);
 	};
+}
+
+// HACK: Since typescript doesn't have a "generic of generics" we explicitly defined 10 mixins and union
+export function Mixin<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(t1: T1, t2?: T2, t3?: T3, t4?: T4, t5?: T5, t6?: T6, t7?: T7, t8?: T8, t9?: T9, t10?: T10): T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 & T9 & T10 {
+	return class {
+		mixins = _.compact([ t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 ]);
+	} as any;
 }
