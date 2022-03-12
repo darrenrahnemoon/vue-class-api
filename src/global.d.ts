@@ -1,4 +1,4 @@
-interface Class { new(...args: any[]): any }
+interface Class<T> { new(...args: any[]): T }
 
 type PossibleArray<T> = T | T[];
 type PossiblePromise<T> = T | Promise<T>;
